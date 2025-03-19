@@ -11,11 +11,13 @@ import { router, Stack } from 'expo-router';
 import { Group } from '../types/group';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
+import CreateGroupModal from '@/components/CreateGroupModal';
 
 export default function HomeScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
 
   useEffect(() => {
     fetchGroups();
@@ -29,6 +31,16 @@ export default function HomeScreen() {
       setError(err instanceof Error ? err.message : 'Failed to fetch groups');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateGroup = async (name: string, members: string[]) => {
+    try {
+      const newGroup = await api.groups.create({ name, members });
+      setGroups([...groups, newGroup]);
+      setIsCreateModalVisible(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create group');
     }
   };
 
@@ -96,11 +108,20 @@ export default function HomeScreen() {
             contentContainerStyle={styles.listContent}
           />
         )}
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setIsCreateModalVisible(true)}
+        >
           <Ionicons name="add" size={24} color="#fff" />
           <Text style={styles.addButtonText}>New Group</Text>
         </TouchableOpacity>
       </View>
+
+      <CreateGroupModal
+        visible={isCreateModalVisible}
+        onClose={() => setIsCreateModalVisible(false)}
+        onSubmit={handleCreateGroup}
+      />
     </>
   );
 }
@@ -117,6 +138,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingBottom: 100,
   },
   groupItem: {
     flexDirection: 'row',
@@ -179,7 +201,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 90,
     right: 20,
     backgroundColor: '#007AFF',
     flexDirection: 'row',

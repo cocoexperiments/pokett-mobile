@@ -1,6 +1,7 @@
 import config from '../config';
 import { Group } from '../types/group';
 import { Expense } from '../types/expense';
+import { Member } from '../types/member';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -19,6 +20,11 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   return response.json();
 };
 
+export interface CreateGroupData {
+  name: string;
+  members: string[];
+}
+
 export const api = {
   groups: {
     getAll: async (): Promise<Group[]> => {
@@ -34,6 +40,33 @@ export const api = {
     getExpenses: async (id: string): Promise<Expense[]> => {
       const response = await fetch(`${config.apiUrl}/groups/${id}/expenses`);
       return handleResponse<Expense[]>(response);
+    },
+
+    create: async (data: CreateGroupData): Promise<Group> => {
+      const response = await fetch(`${config.apiUrl}/groups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      return handleResponse<Group>(response);
+    },
+  },
+  members: {
+    getAll: async (): Promise<Member[]> => {
+      const response = await fetch(`${config.apiUrl}/members`);
+      return handleResponse<Member[]>(response);
+    },
+    create: async (name: string): Promise<Member> => {
+      const response = await fetch(`${config.apiUrl}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name }),
+      });
+      return handleResponse<Member>(response);
     },
   },
 };
