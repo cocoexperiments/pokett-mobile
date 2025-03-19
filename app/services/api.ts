@@ -10,15 +10,26 @@ class ApiError extends Error {
   }
 }
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
+async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      `HTTP error! status: ${response.status}`
-    );
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Something went wrong');
   }
-  return response.json();
-};
+
+  // Handle empty responses (204 No Content)
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  // Handle responses with content
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  // For other responses, return empty object
+  return {} as T;
+}
 
 export interface CreateGroupData {
   name: string;
@@ -75,6 +86,19 @@ export const api = {
         }
       );
       return handleResponse<Expense>(response);
+    },
+
+    deleteExpense: async (
+      groupId: string,
+      expenseId: string
+    ): Promise<void> => {
+      const response = await fetch(
+        `${config.apiUrl}/groups/${groupId}/expenses/${expenseId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+      return handleResponse<void>(response);
     },
   },
   members: {

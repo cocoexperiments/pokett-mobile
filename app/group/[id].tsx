@@ -6,6 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,7 @@ import { api } from '../services/api';
 import { Expense } from '../types/expense';
 import { Group } from '../types/group';
 import AddExpenseModal from '@/components/AddExpenseModal';
+import { Swipeable } from 'react-native-gesture-handler';
 
 interface GroupedExpenses {
   [key: string]: Expense[];
@@ -104,46 +106,94 @@ export default function GroupDetailScreen({
     });
   };
 
+  const handleDeleteExpense = async (expenseId: string) => {
+    Alert.alert(
+      'Delete Expense',
+      'Are you sure you want to delete this expense?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.groups.deleteExpense(id as string, expenseId);
+              const updatedExpenses = await api.groups.getExpenses(
+                id as string
+              );
+              setExpenses(updatedExpenses);
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : 'Failed to delete expense'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderRightActions = (expenseId: string) => {
+    return (
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => handleDeleteExpense(expenseId)}
+      >
+        <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+      </TouchableOpacity>
+    );
+  };
+
   const renderExpenseItem = (expense: Expense) => {
     const isSettlement = expense.type === 'settlement';
     const icon = isSettlement ? 'swap-horizontal' : 'receipt';
     const color = isSettlement ? '#34C759' : '#007AFF';
 
     return (
-      <View key={expense.id} style={styles.expenseItem}>
-        <View
-          style={[
-            styles.expenseIcon,
-            { backgroundColor: isSettlement ? '#E8F5E9' : '#E3F2FD' },
-          ]}
-        >
-          <Ionicons name={icon} size={20} color={color} />
-        </View>
-        <View style={styles.expenseDetails}>
-          {isSettlement ? (
-            <Text style={styles.expenseDescription}>
-              {expense.paidBy} paid {expense.splitBetween[0]}
-            </Text>
-          ) : (
-            <>
+      <Swipeable
+        key={expense.id}
+        renderRightActions={() => renderRightActions(expense.id)}
+        rightThreshold={40}
+        overshootRight={false}
+      >
+        <View style={styles.expenseItem}>
+          <View
+            style={[
+              styles.expenseIcon,
+              { backgroundColor: isSettlement ? '#E8F5E9' : '#E3F2FD' },
+            ]}
+          >
+            <Ionicons name={icon} size={20} color={color} />
+          </View>
+          <View style={styles.expenseDetails}>
+            {isSettlement ? (
               <Text style={styles.expenseDescription}>
-                {expense.description}
+                {expense.paidBy} paid {expense.splitBetween[0]}
               </Text>
-              <Text style={styles.expenseMeta}>
-                {expense.paidBy} • {expense.splitBetween.join(', ')}
-              </Text>
-            </>
-          )}
+            ) : (
+              <>
+                <Text style={styles.expenseDescription}>
+                  {expense.description}
+                </Text>
+                <Text style={styles.expenseMeta}>
+                  {expense.paidBy} • {expense.splitBetween.join(', ')}
+                </Text>
+              </>
+            )}
+          </View>
+          <View style={styles.expenseAmount}>
+            <Text style={[styles.amountText, { color }]}>
+              ₹{expense.amount.toFixed(2)}
+            </Text>
+            <Text style={styles.expenseDate}>
+              {formatDate(expense.createdAt)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.expenseAmount}>
-          <Text style={[styles.amountText, { color }]}>
-            ₹{expense.amount.toFixed(2)}
-          </Text>
-          <Text style={styles.expenseDate}>
-            {formatDate(expense.createdAt)}
-          </Text>
-        </View>
-      </View>
+      </Swipeable>
     );
   };
 
@@ -396,5 +446,14 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
     marginTop: 16,
+  },
+  deleteButton: {
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+    marginLeft: 8,
+    borderRadius: 8,
   },
 });
