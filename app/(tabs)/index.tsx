@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { Group } from '../types/group';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
@@ -19,10 +19,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
 
-  useEffect(() => {
-    fetchGroups();
-  }, []);
-
   const fetchGroups = async () => {
     try {
       const data = await api.groups.getAll();
@@ -33,6 +29,13 @@ export default function HomeScreen() {
       setIsLoading(false);
     }
   };
+
+  // Fetch groups when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchGroups();
+    }, [])
+  );
 
   const handleCreateGroup = async (name: string, members: string[]) => {
     try {

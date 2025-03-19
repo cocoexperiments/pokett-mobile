@@ -25,6 +25,13 @@ export interface CreateGroupData {
   members: string[];
 }
 
+export interface CreateExpenseData {
+  description: string;
+  amount: number;
+  paidBy: string;
+  splitBetween: string[];
+}
+
 export const api = {
   groups: {
     getAll: async (): Promise<Group[]> => {
@@ -51,6 +58,23 @@ export const api = {
         body: JSON.stringify(data),
       });
       return handleResponse<Group>(response);
+    },
+
+    createExpense: async (
+      groupId: string,
+      data: CreateExpenseData
+    ): Promise<Expense> => {
+      const response = await fetch(
+        `${config.apiUrl}/groups/${groupId}/expenses`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        }
+      );
+      return handleResponse<Expense>(response);
     },
   },
   members: {

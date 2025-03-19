@@ -7,46 +7,56 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { Expense } from '../types/expense';
 import { Group } from '../types/group';
+import AddExpenseModal from '@/components/AddExpenseModal';
 
 interface GroupedExpenses {
   [key: string]: Expense[];
 }
 
-export default function GroupDetailScreen() {
+interface GroupDetailScreenProps {
+  onExpenseAdded?: () => void;
+}
+
+export default function GroupDetailScreen({
+  onExpenseAdded,
+}: GroupDetailScreenProps) {
   const { id } = useLocalSearchParams();
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAddExpenseModalVisible, setIsAddExpenseModalVisible] =
+    useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [groupData, expensesData] = await Promise.all([
-          api.groups.getById(id as string),
-          api.groups.getExpenses(id as string),
-        ]);
+  const fetchData = async () => {
+    try {
+      const [groupData, expensesData] = await Promise.all([
+        api.groups.getById(id as string),
+        api.groups.getExpenses(id as string),
+      ]);
 
-        setGroup(groupData);
-        setExpenses(expensesData);
-      } catch (error) {
-        setError(
-          error instanceof Error ? error.message : 'Failed to fetch data'
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (id) {
-      fetchData();
+      setGroup(groupData);
+      setExpenses(expensesData);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to fetch data');
+    } finally {
+      setIsLoading(false);
     }
-  }, [id]);
+  };
+
+  // Fetch data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (id) {
+        fetchData();
+      }
+    }, [id])
+  );
 
   if (isLoading) {
     return (
@@ -146,57 +156,95 @@ export default function GroupDetailScreen() {
     );
   };
 
+  const handleAddExpense = async (
+    description: string,
+    amount: number,
+    paidBy: string,
+    splitBetween: string[]
+  ) => {
+    try {
+      await api.groups.createExpense(id as string, {
+        description,
+        amount,
+        paidBy,
+        splitBetween,
+      });
+
+      // Refresh the data
+      await fetchData();
+      setIsAddExpenseModalVisible(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add expense');
+    }
+  };
+
   return (
     <>
       <Stack.Screen
         options={{
-          title: group.name,
+          title: group?.name,
           headerShown: true,
           headerBackTitle: 'Groups',
         }}
       />
-      <ScrollView style={styles.container}>
-        <View style={styles.totalExpensesContainer}>
-          <Text style={styles.totalExpenses}>
-            Total Expenses: ₹{group.totalExpenses.toFixed(2)}
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Members</Text>
-          <View style={styles.membersList}>
-            {group.members.map((member, index) => (
-              <View key={index} style={styles.memberItem}>
-                <Text style={styles.memberName}>{member}</Text>
-              </View>
-            ))}
+      <View style={styles.container}>
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.totalExpensesContainer}>
+            <Text style={styles.totalExpenses}>
+              Total Expenses: ₹{group.totalExpenses.toFixed(2)}
+            </Text>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Expenses</Text>
-            <Text style={styles.expenseCount}>{expenses.length} items</Text>
-          </View>
-          {expenses.length === 0 ? (
-            <Text style={styles.noExpensesText}>No expenses yet</Text>
-          ) : (
-            <View style={styles.expensesList}>
-              {Object.entries(groupExpensesByMonth(expenses))
-                .sort(
-                  (a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()
-                )
-                .map(([month, monthExpenses]) =>
-                  renderExpenseGroup(month, monthExpenses)
-                )}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Members</Text>
+            <View style={styles.membersList}>
+              {group.members.map((member, index) => (
+                <View key={index} style={styles.memberItem}>
+                  <Text style={styles.memberName}>{member}</Text>
+                </View>
+              ))}
             </View>
-          )}
-        </View>
+          </View>
 
-        <TouchableOpacity style={styles.addExpenseButton}>
-          <Text style={styles.addExpenseButtonText}>Add New Expense</Text>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Expenses</Text>
+              <Text style={styles.expenseCount}>{expenses.length} items</Text>
+            </View>
+            {expenses.length === 0 ? (
+              <Text style={styles.noExpensesText}>No expenses yet</Text>
+            ) : (
+              <View style={styles.expensesList}>
+                {Object.entries(groupExpensesByMonth(expenses))
+                  .sort(
+                    (a, b) =>
+                      new Date(b[0]).getTime() - new Date(a[0]).getTime()
+                  )
+                  .map(([month, monthExpenses]) =>
+                    renderExpenseGroup(month, monthExpenses)
+                  )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setIsAddExpenseModalVisible(true)}
+        >
+          <Ionicons name="add" size={24} color="#fff" />
+          <Text style={styles.addButtonText}>New Expense</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
+
+      {group && (
+        <AddExpenseModal
+          visible={isAddExpenseModalVisible}
+          onClose={() => setIsAddExpenseModalVisible(false)}
+          onSubmit={handleAddExpense}
+          members={group.members}
+        />
+      )}
     </>
   );
 }
@@ -205,6 +253,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -314,17 +365,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
   },
-  addExpenseButton: {
+  addButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
     backgroundColor: '#007AFF',
-    margin: 20,
-    padding: 16,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  addExpenseButtonText: {
+  addButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
   },
   expenseGroup: {
     marginBottom: 8,
